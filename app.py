@@ -4,7 +4,10 @@ import base64
 from io import BytesIO
 from math import radians, sin, cos, asin, sqrt
 import streamlit.components.v1 as components
-
+import gspread
+from google.oauth2.service_account import Credentials
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import base64
 def get_current_location():
@@ -70,7 +73,7 @@ st.markdown(
 st.markdown(
     """
     <h4 style='text-align: center; color: #6b7280; margin-top: -10px;'>
-        <span style='color:#0072C6; font-weight:700;'>Tata Power - MIT SZ-MCZ</span> | Non-Smart Meter Consumer Data Search & Navigation 
+        <span style='color:#0072C6; font-weight:700;'>Tata Power - MIT South Zone</span> | Non-Smart Meter Consumer Data Search & Navigation 
     </h4>
     <br>
     """,
@@ -199,45 +202,115 @@ st.markdown(
 
 # ---------- SIMPLE LOGIN LAYER (ADDED) ----------
 
-# Hard-coded credentials – change as needed
-VALID_USERNAME = "user"
-VALID_PASSWORD = "MIT1234"
+# ---------- GOOGLE SHEET LOGGING SETUP ----------
 
-# Initialise session state
+scope = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
+
+creds = Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"],
+    scopes=scope,
+)
+
+client = gspread.authorize(creds)
+sheet = client.open("App_Access_Log").sheet1
+
+# ---------- LOG FUNCTION (INDIAN TIME) ----------
+
+def log_activity(user, action):
+    ist_time = datetime.now(ZoneInfo("Asia/Kolkata"))
+
+    sheet.append_row([
+        ist_time.strftime("%d-%m-%Y %I:%M:%S %p IST"),
+        user,
+        action
+    ])
+
+#--------------Download Limit Function-------------
+MAX_DOWNLOADS_PER_DAY = 15
+
+def check_download_limit(user):
+    today = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d-%m-%Y")
+
+    records = sheet.get_all_values()
+    count = 0
+
+    for row in records:
+        if row[0].startswith(today) and row[1] == user and row[2] == "Download":
+            count += 1
+
+    return count
+
+# ---------- MULTI USER LOGIN SYSTEM ----------
+
+USERS = {
+    "user7": {"password": "MIT@123"},
+    "user8": {"password": "MIT@234"},
+    "user9": {"password": "MIT@345"},
+    "admin": {"password": "MITSZ@123"},
+}
+
 if "logged_in" not in st.session_state:
-    st.session_state["logged_in"] = False
+    st.session_state.logged_in = False
+
+if "user" not in st.session_state:
+    st.session_state.user = None
 
 def show_login():
-    st.title("🔐 Login")
-    st.write("This app contains confidential data. Please login to continue.")
+    st.title("🔐 Secure Login - South & City Zone")
 
-    username = st.text_input("Username", key="login_username")
-    password = st.text_input("Password", type="password", key="login_password")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
 
-    if st.button("Login", key="login_button"):
-        if username == VALID_USERNAME and password == VALID_PASSWORD:
-            st.session_state["logged_in"] = True
-            st.success("Login successful. Loading app...")
-            st.rerun()  # <- modern replacement for st.experimental_rerun
+    if st.button("Login"):
+        if username in USERS and USERS[username]["password"] == password:
+            st.session_state.logged_in = True
+            st.session_state.user = username
+
+            log_activity(username, "Login")
+
+            st.success("Login Successful")
+            st.rerun()
         else:
-            st.error("Invalid username or password.")
+            st.error("Invalid credentials")
 
-# If not logged in, show login page and stop executing the rest of the app
-if not st.session_state["logged_in"]:
+if not st.session_state.logged_in:
     show_login()
     st.stop()
+
+# ---------- SHOW DOWNLOAD USAGE ----------
+
+download_count = check_download_limit(st.session_state.user)
+remaining_downloads = MAX_DOWNLOADS_PER_DAY - download_count
+
+st.markdown("### 🔐 Download Usage Today")
+
+if remaining_downloads > 0:
+    st.success(
+        f"User: {st.session_state.user} | "
+        f"Downloads used: {download_count} / {MAX_DOWNLOADS_PER_DAY} | "
+        f"Remaining: {remaining_downloads}"
+    )
+else:
+    st.error("⚠ Daily download limit reached (15 downloads).")
+
+
+
+
 
 # ---------- DATA LOADING ----------
 @st.cache_data(show_spinner=True)
 def load_data():
     df = pd.read_excel("bigfile.xlsx")
-
-    # 🔧 Normalize column names
     df.columns = df.columns.str.strip()
 
-    # 🔧 Fix Logitude typo
     if "Logitude" in df.columns:
         df = df.rename(columns={"Logitude": "Longitude"})
+
+    df["Latitude"] = pd.to_numeric(df["Latitude"], errors="coerce")
+    df["Longitude"] = pd.to_numeric(df["Longitude"], errors="coerce")
 
     return df
 
@@ -350,6 +423,7 @@ SEARCH_COLUMNS = [
     "Meter No.",
     "Building ID",
     "Building Name",
+    "MRU",
 ]
 
 SEARCH_COLUMNS = [c for c in SEARCH_COLUMNS if c in df.columns]
@@ -442,6 +516,9 @@ if not filtered_df.empty:
 
         st.markdown('<div class="field-label">Building Name</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="field-value">{row.get("Building Name", "")}</div>', unsafe_allow_html=True)
+        
+        st.markdown('<div class="field-label">MRU</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="field-value">{row.get("MRU", "")}</div>', unsafe_allow_html=True)
 
 
     with c2:
@@ -488,6 +565,8 @@ if not filtered_df.empty:
     st.markdown("</div>", unsafe_allow_html=True)  # close result-card
 
     # ---------- DOWNLOAD SECTION ----------
+    # ---------- DOWNLOAD SECTION ----------
+        # ---------- DOWNLOAD SECTION ----------
     st.markdown("#### Download filtered result")
 
     download_df = filtered_df.copy()
@@ -497,26 +576,32 @@ if not filtered_df.empty:
         download_df.to_excel(writer, index=False, sheet_name="Filtered Data")
     buffer.seek(0)
 
-    st.download_button(
-        label="⬇️ Download filtered result as Excel",
-        data=buffer,
-        file_name="filtered_consumer_data.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
+    if remaining_downloads > 0:
+        st.download_button(
+            label="⬇️ Download filtered result as Excel",
+            data=buffer,
+            file_name="filtered_consumer_data.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            on_click=log_activity,
+            args=(st.session_state.user, "Download"),
+        )
+    else:
+        st.warning("Download limit reached for today.")
+
     st.markdown(
         '<div class="download-caption">File will contain all matching rows with the same columns as your original Excel.</div>',
         unsafe_allow_html=True,
     )
 
-    # Optional: show all matches in an expander
-        # Optional: show matches in an expander (capped for performance)
-    MAX_DISPLAY_ROWS = 10_000  # browser-friendly limit
+    MAX_DISPLAY_ROWS = 10_000
 
     with st.expander(
         f"See first {min(len(download_df), MAX_DISPLAY_ROWS):,} "
         f"of {len(download_df):,} matching rows"
     ):
         st.dataframe(download_df.head(MAX_DISPLAY_ROWS), use_container_width=True)
+
+        
 # ---------- ROUTE PLANNER SECTION ----------
 # ---------- ROUTE PLANNER (AUTO-GROUP ONLY) ----------
 st.markdown(
@@ -648,7 +733,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-with st.expander("Show nearest 50 meters on map"):
+with st.expander("Show nearest 100 meters on map"):
 
     # ================== FILTERS (BEFORE LOCATION) ==================
     col_f1, col_f2 = st.columns(2)
@@ -691,7 +776,7 @@ with st.expander("Show nearest 50 meters on map"):
         )
 
     # ================== ACTION ==================
-    if st.button("📍 Find nearest 50 meters"):
+    if st.button("📍 Find nearest 100 meters"):
 
         if user_lat == 0 or user_lon == 0:
             st.warning("Please enter valid latitude and longitude.")
@@ -728,18 +813,18 @@ with st.expander("Show nearest 50 meters on map"):
                 axis=1,
             )
 
-            # ------------------ Nearest 50 ------------------
-            nearest_50 = (
+            # ------------------ Nearest 100 ------------------
+            nearest_100 = (
                 meters_filtered
                 .sort_values("Distance_km")
-                .head(50)
+                .head(100)
                 .reset_index(drop=True)
             )
 
             # ================== MAP SECTION ==================
-            st.subheader("🗺️ Nearest 50 meters (map)")
+            st.subheader("🗺️ Nearest 100 meters (map)")
 
-            map_df = nearest_50.copy()
+            map_df = nearest_100.copy()
             map_df["Latitude"] = pd.to_numeric(map_df["Latitude"], errors="coerce")
             map_df["Longitude"] = pd.to_numeric(map_df["Longitude"], errors="coerce")
             map_df = map_df.dropna(subset=["Latitude", "Longitude"])
@@ -757,9 +842,9 @@ with st.expander("Show nearest 50 meters on map"):
                 st.map(map_df[["lat", "lon"]])
 
             # ================== LIST SECTION ==================
-            st.subheader("📋 Nearest meters list")
+            st.subheader("📋 Nearest 100 meters list")
 
-            show_df = nearest_50[
+            show_df = nearest_100[
                 [
                     "Meter No.",
                     "Consumer Name",
@@ -776,7 +861,7 @@ with st.expander("Show nearest 50 meters on map"):
             show_df["Distance_km"] = show_df["Distance_km"].round(2)
 
             # Google Maps link
-            show_df["Google Maps"] = nearest_50.apply(
+            show_df["Google Maps"] = nearest_100.apply(
                 lambda r: f'<a href="https://www.google.com/maps?q={r["Latitude"]},{r["Longitude"]}" target="_blank">📍 Open Map</a>',
                 axis=1,
             )
@@ -812,17 +897,21 @@ with st.expander("Show nearest 50 meters on map"):
                 download_df.to_excel(
                     writer,
                     index=False,
-                    sheet_name="Nearest_50_Meters",
+                    sheet_name="Nearest_100_Meters",
                 )
 
             buffer.seek(0)
 
-            st.download_button(
-                "⬇️ Download Nearest Meters List (Excel)",
-                data=buffer,
-                file_name="nearest_50_meters.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
+            if remaining_downloads > 0:
+                st.download_button(
+                    "⬇️ Download Nearest 100 Meters List (Excel)",
+                    data=buffer,
+                    file_name="nearest_100_meters.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    on_click=log_activity,
+                    args=(st.session_state.user, "Download"),
+                )
+            else:
+                st.warning("Download limit reached for today.")
 
 st.markdown("</div>", unsafe_allow_html=True)  # close main-container
-
