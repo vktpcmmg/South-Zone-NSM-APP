@@ -766,6 +766,11 @@ with st.expander("Show nearest 100 meters on map"):
 
 from streamlit_geolocation import streamlit_geolocation
 
+st.markdown("### 📍 Get Current Location")
+
+# Custom label (your button text feel)
+st.write("👉 Click below to fetch your current location")
+
 location = streamlit_geolocation()
 
 if location:
@@ -790,7 +795,6 @@ with col2:
         format="%.6f",
         value=auto_lon,
     )
-
     # ================== ACTION ==================
     if st.button("📍 Find nearest 100 meters"):
 
