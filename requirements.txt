@@ -1,4 +1,6 @@
 streamlit
 pandas
 openpyxl
-XlsxWriter
+xlsxwriter
+gspread
+google-auth
