@@ -8,6 +8,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from streamlit_geolocation import streamlit_geolocation
 
 import base64
 def get_current_location():
@@ -761,23 +762,19 @@ with st.expander("Show nearest 100 meters on map"):
     # ================== LOCATION INPUT ==================
     # ================== LOCATION INPUT ==================
 
-# 👉 ADD BUTTON HERE
-if st.button("📍 Use My Current Location"):
-    get_current_location()
+# ================== LOCATION INPUT ==================
 
-# 👉 READ FROM URL
-query_params = st.query_params
+from streamlit_geolocation import streamlit_geolocation
 
-if "lat" in query_params and "lon" in query_params:
-    try:
-        auto_lat = float(query_params["lat"])
-        auto_lon = float(query_params["lon"])
-    except:
-        auto_lat, auto_lon = 0.0, 0.0
+location = streamlit_geolocation()
+
+if location:
+    auto_lat = location["latitude"]
+    auto_lon = location["longitude"]
 else:
-    auto_lat, auto_lon = 0.0, 0.0
+    auto_lat = 0.0
+    auto_lon = 0.0
 
-# 👉 THEN YOUR INPUTS
 col1, col2 = st.columns(2)
 
 with col1:
