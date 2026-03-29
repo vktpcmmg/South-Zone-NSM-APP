@@ -759,21 +759,40 @@ with st.expander("Show nearest 100 meters on map"):
     st.divider()
 
     # ================== LOCATION INPUT ==================
-    col1, col2 = st.columns(2)
+    # ================== LOCATION INPUT ==================
 
-    with col1:
-        user_lat = st.number_input(
-            "Your current latitude",
-            format="%.6f",
-            help="Copy from Google Maps blue dot",
-        )
+# 👉 ADD BUTTON HERE
+if st.button("📍 Use My Current Location"):
+    get_current_location()
 
-    with col2:
-        user_lon = st.number_input(
-            "Your current longitude",
-            format="%.6f",
-            help="Copy from Google Maps blue dot",
-        )
+# 👉 READ FROM URL
+query_params = st.query_params
+
+if "lat" in query_params and "lon" in query_params:
+    try:
+        auto_lat = float(query_params["lat"])
+        auto_lon = float(query_params["lon"])
+    except:
+        auto_lat, auto_lon = 0.0, 0.0
+else:
+    auto_lat, auto_lon = 0.0, 0.0
+
+# 👉 THEN YOUR INPUTS
+col1, col2 = st.columns(2)
+
+with col1:
+    user_lat = st.number_input(
+        "Your current latitude",
+        format="%.6f",
+        value=auto_lat,
+    )
+
+with col2:
+    user_lon = st.number_input(
+        "Your current longitude",
+        format="%.6f",
+        value=auto_lon,
+    )
 
     # ================== ACTION ==================
     if st.button("📍 Find nearest 100 meters"):
