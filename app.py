@@ -795,7 +795,7 @@ with col2:
         format="%.6f",
         value=auto_lon,
     )
-
+st.write("")
 # ================== ACTION ==================
 if st.button("📍 Find nearest 100 meters"):
 
