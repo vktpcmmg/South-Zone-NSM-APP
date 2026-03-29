@@ -769,7 +769,7 @@ from streamlit_geolocation import streamlit_geolocation
 st.markdown("### 📍 Get Current Location")
 
 # Custom label (your button text feel)
-st.write("👉 Click below to fetch your current location")
+st.write("👉 Click below icon to fetch your current location")
 
 location = streamlit_geolocation()
 
