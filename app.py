@@ -1202,6 +1202,7 @@ if st.session_state.user == "admin":
                         <= hotspot_radius
                     ].copy()
 
+                    # ---------- KEEP ONLY VALID CLUSTERS ----------
                     if len(cluster_df) > 1:
 
                         cluster_df["Cluster ID"] = (
@@ -1216,14 +1217,14 @@ if st.session_state.user == "admin":
 
                         cluster_id += 1
 
-                    # REMOVE USED METERS
+                    # ---------- REMOVE USED METERS ----------
                     remaining_df = remaining_df[
                         ~remaining_df.index.isin(
                             cluster_df.index
                         )
                     ]
 
-                # ---------- FINAL ----------
+                # ---------- NO CLUSTERS ----------
                 if len(clusters) == 0:
 
                     st.warning(
@@ -1232,6 +1233,7 @@ if st.session_state.user == "admin":
 
                 else:
 
+                    # ---------- FINAL COMBINED ----------
                     final_clusters = pd.concat(
                         clusters,
                         ignore_index=True
@@ -1250,35 +1252,58 @@ if st.session_state.user == "admin":
                             "Meter Count",
                             ascending=False
                         )
+                        .head(hotspot_top_n)
+                        .reset_index(drop=True)
 
                     )
 
-                    # ---------- TOP N ----------
-                    hotspot_summary = hotspot_summary.head(
-                        hotspot_top_n
+                    # ---------- ORIGINAL IDS ----------
+                    original_cluster_ids = (
+                        hotspot_summary[
+                            "Cluster ID"
+                        ].tolist()
                     )
 
-                    # ---------- RESEQUENCE ----------
+                    # ---------- FILTER FINAL ----------
+                    final_clusters = final_clusters[
+                        final_clusters["Cluster ID"]
+                        .isin(original_cluster_ids)
+                    ].copy()
+
+                    # ---------- NEW NUMBERING ----------
+                    cluster_mapping = {
+                        old_id: new_id + 1
+                        for new_id, old_id in enumerate(
+                            original_cluster_ids
+                        )
+                    }
+
+                    final_clusters["Cluster ID"] = (
+                        final_clusters["Cluster ID"]
+                        .map(cluster_mapping)
+                    )
+
+                    # ---------- FINAL SUMMARY ----------
+                    hotspot_summary = (
+
+                        final_clusters
+                        .groupby("Cluster ID")
+                        .size()
+                        .reset_index(
+                            name="Meter Count"
+                        )
+                        .sort_values(
+                            "Meter Count",
+                            ascending=False
+                        )
+
+                    )
+
                     hotspot_summary = hotspot_summary.reset_index(
                         drop=True
                     )
 
-                    hotspot_summary["Cluster ID"] = (
-                        hotspot_summary.index + 1
-                    )
-
-                    # ---------- KEEP ONLY TOP ----------
-                    top_cluster_ids = (
-                        hotspot_summary["Cluster ID"]
-                        .tolist()
-                    )
-
-                    final_clusters = final_clusters[
-                        final_clusters["Cluster ID"]
-                        <= hotspot_top_n
-                    ]
-
-                    # ---------- SUMMARY ----------
+                    # ---------- DISPLAY SUMMARY ----------
                     st.subheader(
                         "🔥 Hotspot Cluster Summary"
                     )
