@@ -11,7 +11,6 @@ from zoneinfo import ZoneInfo
 
 import base64
 def get_current_location():
-def get_current_location():
     components.html(
         """
         <script>
