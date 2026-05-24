@@ -14,22 +14,49 @@ def get_current_location():
     components.html(
         """
         <script>
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
+        function sendLocation(position) {
 
-                const params = new URLSearchParams(window.location.search);
-                params.set("lat", lat);
-                params.set("lon", lon);
+            const latitude = position.coords.latitude;
+            const longitude = position.coords.longitude;
 
-                window.location.search = params.toString();
-            },
-            (err) => {
-                const params = new URLSearchParams(window.location.search);
-                params.set("lat", "ERROR");
-                window.location.search = params.toString();
+            const streamlitDoc = window.parent.document;
+
+            const latInput = streamlitDoc.querySelector(
+                'input[aria-label="Your current latitude"]'
+            );
+
+            const lonInput = streamlitDoc.querySelector(
+                'input[aria-label="Your current longitude"]'
+            );
+
+            if (latInput && lonInput) {
+
+                const nativeInputValueSetter =
+                    Object.getOwnPropertyDescriptor(
+                        window.HTMLInputElement.prototype,
+                        "value"
+                    ).set;
+
+                nativeInputValueSetter.call(latInput, latitude);
+                nativeInputValueSetter.call(lonInput, longitude);
+
+                latInput.dispatchEvent(
+                    new Event('input', { bubbles: true })
+                );
+
+                lonInput.dispatchEvent(
+                    new Event('input', { bubbles: true })
+                );
             }
+        }
+
+        function locationError(error) {
+            alert("Please allow location permission.");
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            sendLocation,
+            locationError
         );
         </script>
         """,
