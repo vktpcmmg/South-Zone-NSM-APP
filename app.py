@@ -793,14 +793,26 @@ except:
     pass
 
 # ---------- INPUT BOXES ----------
-col1, col2 = st.columns(2)
+# ---------- SESSION STATE ----------
+if "user_latitude" not in st.session_state:
+    st.session_state.user_latitude = default_lat
 
+if "user_longitude" not in st.session_state:
+    st.session_state.user_longitude = default_lon
+
+# Update values from GPS
+if default_lat != 0.0:
+    st.session_state.user_latitude = default_lat
+
+if default_lon != 0.0:
+    st.session_state.user_longitude = default_lon
+
+# ---------- INPUT BOXES ----------
 with col1:
 
     user_lat = st.number_input(
         "Your current latitude",
         format="%.6f",
-        value=default_lat,
         key="user_latitude",
     )
 
@@ -809,7 +821,6 @@ with col2:
     user_lon = st.number_input(
         "Your current longitude",
         format="%.6f",
-        value=default_lon,
         key="user_longitude",
     )
 
