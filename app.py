@@ -1166,7 +1166,7 @@ if st.session_state.user == "admin":
 
                 else:
 
-                    # ---------- HOTSPOT SUMMARY ----------
+                    # ---------- TOP 5 HOTSPOTS ----------
                     hotspot_summary = (
 
                         hotspot_clusters
@@ -1177,8 +1177,41 @@ if st.session_state.user == "admin":
                             "Meter Count",
                             ascending=False
                         )
+                        .head(5)
+                        .reset_index(drop=True)
 
                     )
+
+                    # ---------- CLUSTER NUMBERING ----------
+                    hotspot_summary["Cluster ID"] = (
+                        hotspot_summary.index + 1
+                    )
+
+                    # ---------- MAP OLD TO NEW ----------
+                    cluster_mapping = dict(
+                        zip(
+                            hotspot_summary["cluster"],
+                            hotspot_summary["Cluster ID"]
+                        )
+                    )
+
+                    # ---------- FILTER TOP 5 ----------
+                    hotspot_clusters = hotspot_clusters[
+                        hotspot_clusters["cluster"].isin(
+                            cluster_mapping.keys()
+                        )
+                    ]
+
+                    # ---------- APPLY NEW NUMBERING ----------
+                    hotspot_clusters["cluster"] = (
+                        hotspot_clusters["cluster"]
+                        .map(cluster_mapping)
+                    )
+
+                    # ---------- FINAL SUMMARY ----------
+                    hotspot_summary = hotspot_summary[
+                        ["Cluster ID", "Meter Count"]
+                    ]
 
                     st.subheader(
                         "🔥 Hotspot Cluster Summary"
@@ -1239,7 +1272,7 @@ if st.session_state.user == "admin":
                         hotspot_show.to_excel(
                             writer,
                             index=False,
-                            sheet_name="Hotspot_Clusters",
+                            sheet_name="Top_5_Hotspot_Clusters",
                         )
 
                     buffer.seek(0)
@@ -1247,6 +1280,6 @@ if st.session_state.user == "admin":
                     st.download_button(
                         "⬇️ Download Hotspot Excel",
                         data=buffer,
-                        file_name="hotspot_clusters.xlsx",
+                        file_name="top_5_hotspot_clusters.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     )
