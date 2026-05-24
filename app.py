@@ -14,6 +14,7 @@ def get_current_location():
     components.html(
         """
         <script>
+
         function sendLocation(position) {
 
             const latitude = Number(position.coords.latitude.toFixed(6));
@@ -47,6 +48,14 @@ def get_current_location():
                 lonInput.dispatchEvent(
                     new Event('input', { bubbles: true })
                 );
+
+                latInput.dispatchEvent(
+                    new Event('change', { bubbles: true })
+                );
+
+                lonInput.dispatchEvent(
+                    new Event('change', { bubbles: true })
+                );
             }
         }
 
@@ -58,11 +67,11 @@ def get_current_location():
             sendLocation,
             locationError
         );
+
         </script>
         """,
         height=0,
     )
-
 def load_logo():
     with open("tata_logo.png", "rb") as f:
         return base64.b64encode(f.read()).decode()
