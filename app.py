@@ -14,49 +14,22 @@ def get_current_location():
     components.html(
         """
         <script>
-        function sendLocation(position) {
-
-            const latitude = Number(position.coords.latitude.toFixed(6));
-            const longitude = Number(position.coords.longitude.toFixed(6));
-
-            const streamlitDoc = window.parent.document;
-
-            const latInput = streamlitDoc.querySelector(
-                'input[aria-label="Your current latitude"]'
-            );
-
-            const lonInput = streamlitDoc.querySelector(
-                'input[aria-label="Your current longitude"]'
-            );
-
-            if (latInput && lonInput) {
-
-                const nativeInputValueSetter =
-                    Object.getOwnPropertyDescriptor(
-                        window.HTMLInputElement.prototype,
-                        "value"
-                    ).set;
-
-                nativeInputValueSetter.call(latInput, latitude);
-                nativeInputValueSetter.call(lonInput, longitude);
-
-                latInput.dispatchEvent(
-                    new Event('input', { bubbles: true })
-                );
-
-                lonInput.dispatchEvent(
-                    new Event('input', { bubbles: true })
-                );
-            }
-        }
-
-        function locationError(error) {
-            alert("Please allow location permission.");
-        }
-
         navigator.geolocation.getCurrentPosition(
-            sendLocation,
-            locationError
+            (pos) => {
+                const lat = pos.coords.latitude;
+                const lon = pos.coords.longitude;
+
+                const params = new URLSearchParams(window.location.search);
+                params.set("lat", lat);
+                params.set("lon", lon);
+
+                window.location.search = params.toString();
+            },
+            (err) => {
+                const params = new URLSearchParams(window.location.search);
+                params.set("lat", "ERROR");
+                window.location.search = params.toString();
+            }
         );
         </script>
         """,
@@ -786,59 +759,22 @@ with st.expander("Show nearest 100 meters on map"):
     st.divider()
 
     # ================== LOCATION INPUT ==================
-   # ================== AUTO + MANUAL LOCATION INPUT ==================
+    col1, col2 = st.columns(2)
 
-st.markdown("### 📍 Location Input")
-
-# ---------- AUTO FETCH BUTTON ----------
-if st.button("📡 Auto Fetch My Current Location"):
-    get_current_location()
-
-# ---------- READ URL PARAMS ----------
-query_params = st.query_params
-
-auto_lat = 0.0
-auto_lon = 0.0
-
-try:
-    if "lat" in query_params and "lon" in query_params:
-        auto_lat = float(query_params["lat"])
-        auto_lon = float(query_params["lon"])
-
-        st.success(
-            f"Location fetched successfully → "
-            f"Lat: {auto_lat:.6f}, Lon: {auto_lon:.6f}"
+    with col1:
+        user_lat = st.number_input(
+            "Your current latitude",
+            format="%.6f",
+            help="Copy from Google Maps blue dot",
         )
 
-except:
-    st.warning("Location permission denied or GPS unavailable.")
+    with col2:
+        user_lon = st.number_input(
+            "Your current longitude",
+            format="%.6f",
+            help="Copy from Google Maps blue dot",
+        )
 
-# ---------- MANUAL ENTRY ----------
-# ---------- SESSION STATE ----------
-if "user_latitude" not in st.session_state:
-    st.session_state.user_latitude = 0.0
-
-if "user_longitude" not in st.session_state:
-    st.session_state.user_longitude = 0.0
-
-# ---------- MANUAL ENTRY ----------
-col1, col2 = st.columns(2)
-
-with col1:
-    user_lat = st.number_input(
-        "Your current latitude",
-        format="%.6f",
-        key="user_latitude",
-        help="Auto-filled from GPS OR enter manually",
-    )
-
-with col2:
-    user_lon = st.number_input(
-        "Your current longitude",
-        format="%.6f",
-        key="user_longitude",
-        help="Auto-filled from GPS OR enter manually",
-    )
     # ================== ACTION ==================
     if st.button("📍 Find nearest 100 meters"):
 
