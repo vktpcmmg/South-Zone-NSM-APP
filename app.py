@@ -8,37 +8,9 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from streamlit_js_eval import get_geolocation
 
 import base64
-def get_current_location():
-    components.html(
-        """
-        <script>
-
-        navigator.geolocation.getCurrentPosition(
-            function(position) {
-
-                const lat = position.coords.latitude.toFixed(6);
-                const lon = position.coords.longitude.toFixed(6);
-
-                const url = new URL(window.parent.location);
-
-                url.searchParams.set("lat", lat);
-                url.searchParams.set("lon", lon);
-
-                window.parent.location.href = url.toString();
-            },
-
-            function(error) {
-                alert("Please allow location permission.");
-            }
-
-        );
-
-        </script>
-        """,
-        height=0,
-    )
 def load_logo():
     with open("tata_logo.png", "rb") as f:
         return base64.b64encode(f.read()).decode()
@@ -762,45 +734,64 @@ with st.expander("Show nearest 100 meters on map"):
     st.divider()
 
 # ================== LOCATION INPUT ==================
-# ================== LOCATION INPUT ==================
 
 st.markdown("### 📍 Location Input")
 
-# ---------- AUTO FETCH BUTTON ----------
+# ---------- DEFAULT VALUES ----------
+if "user_lat" not in st.session_state:
+    st.session_state.user_lat = 0.0
+
+if "user_lon" not in st.session_state:
+    st.session_state.user_lon = 0.0
+
+# ---------- AUTO FETCH ----------
 if st.button("📡 Auto Fetch My Current Location"):
-    get_current_location()
 
-# ---------- URL PARAMS ----------
-query_params = st.query_params
+    loc = get_geolocation()
 
-default_lat = 0.0
-default_lon = 0.0
+    if loc is not None:
 
-try:
-    if "lat" in query_params:
-        default_lat = float(query_params["lat"])
+        try:
 
-    if "lon" in query_params:
-        default_lon = float(query_params["lon"])
+            st.session_state.user_lat = round(
+                loc["coords"]["latitude"],
+                6
+            )
 
-except:
-    pass
+            st.session_state.user_lon = round(
+                loc["coords"]["longitude"],
+                6
+            )
 
-# ---------- INPUT BOXES ----------
+            st.success(
+                f"Location fetched successfully → "
+                f"{st.session_state.user_lat}, "
+                f"{st.session_state.user_lon}"
+            )
+
+        except:
+
+            st.error(
+                "Unable to fetch GPS coordinates."
+            )
+
+# ---------- MANUAL ENTRY ----------
 col1, col2 = st.columns(2)
 
 with col1:
+
     user_lat = st.number_input(
         "Your current latitude",
         format="%.6f",
-        value=default_lat,
+        key="user_lat",
     )
 
 with col2:
+
     user_lon = st.number_input(
         "Your current longitude",
         format="%.6f",
-        value=default_lon,
+        key="user_lon",
     )
 
 # ================== ACTION ==================
@@ -834,7 +825,7 @@ if st.button("📍 Find nearest 100 meters"):
                 == selected_consumer_type
             ]
 
-        if meters_filtered.empty():
+        if meters_filtered.empty:
 
             st.error(
                 "No meters found for selected filters."
@@ -998,6 +989,9 @@ if st.button("📍 Find nearest 100 meters"):
             )
 
         else:
-            st.warning("Download limit reached for today.")
+
+            st.warning(
+                "Download limit reached for today."
+            )
 
 st.markdown("</div>", unsafe_allow_html=True)
