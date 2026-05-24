@@ -11,61 +11,29 @@ from zoneinfo import ZoneInfo
 
 import base64
 def get_current_location():
+def get_current_location():
     components.html(
         """
         <script>
 
-        function sendLocation(position) {
-
-            const latitude = Number(position.coords.latitude.toFixed(6));
-            const longitude = Number(position.coords.longitude.toFixed(6));
-
-            const streamlitDoc = window.parent.document;
-
-            const latInput = streamlitDoc.querySelector(
-                'input[aria-label="Your current latitude"]'
-            );
-
-            const lonInput = streamlitDoc.querySelector(
-                'input[aria-label="Your current longitude"]'
-            );
-
-            if (latInput && lonInput) {
-
-                const nativeInputValueSetter =
-                    Object.getOwnPropertyDescriptor(
-                        window.HTMLInputElement.prototype,
-                        "value"
-                    ).set;
-
-                nativeInputValueSetter.call(latInput, latitude);
-                nativeInputValueSetter.call(lonInput, longitude);
-
-                latInput.dispatchEvent(
-                    new Event('input', { bubbles: true })
-                );
-
-                lonInput.dispatchEvent(
-                    new Event('input', { bubbles: true })
-                );
-
-                latInput.dispatchEvent(
-                    new Event('change', { bubbles: true })
-                );
-
-                lonInput.dispatchEvent(
-                    new Event('change', { bubbles: true })
-                );
-            }
-        }
-
-        function locationError(error) {
-            alert("Please allow location permission.");
-        }
-
         navigator.geolocation.getCurrentPosition(
-            sendLocation,
-            locationError
+            function(position) {
+
+                const lat = position.coords.latitude.toFixed(6);
+                const lon = position.coords.longitude.toFixed(6);
+
+                const url = new URL(window.parent.location);
+
+                url.searchParams.set("lat", lat);
+                url.searchParams.set("lon", lon);
+
+                window.parent.location.href = url.toString();
+            },
+
+            function(error) {
+                alert("Please allow location permission.");
+            }
+
         );
 
         </script>
@@ -803,12 +771,21 @@ st.markdown("### 📍 Location Input")
 if st.button("📡 Auto Fetch My Current Location"):
     get_current_location()
 
-# ---------- SESSION STATE ----------
-if "user_latitude" not in st.session_state:
-    st.session_state.user_latitude = 0.0
+# ---------- URL PARAMS ----------
+query_params = st.query_params
 
-if "user_longitude" not in st.session_state:
-    st.session_state.user_longitude = 0.0
+default_lat = 0.0
+default_lon = 0.0
+
+try:
+    if "lat" in query_params:
+        default_lat = float(query_params["lat"])
+
+    if "lon" in query_params:
+        default_lon = float(query_params["lon"])
+
+except:
+    pass
 
 # ---------- INPUT BOXES ----------
 col1, col2 = st.columns(2)
@@ -817,23 +794,24 @@ with col1:
     user_lat = st.number_input(
         "Your current latitude",
         format="%.6f",
-        key="user_latitude",
-        help="Auto-filled from GPS OR enter manually",
+        value=default_lat,
     )
 
 with col2:
     user_lon = st.number_input(
         "Your current longitude",
         format="%.6f",
-        key="user_longitude",
-        help="Auto-filled from GPS OR enter manually",
+        value=default_lon,
     )
 
 # ================== ACTION ==================
 if st.button("📍 Find nearest 100 meters"):
 
     if user_lat == 0 or user_lon == 0:
-        st.warning("Please enter valid latitude and longitude.")
+
+        st.warning(
+            "Please enter valid latitude and longitude."
+        )
 
     else:
 
@@ -844,36 +822,48 @@ if st.button("📍 Find nearest 100 meters"):
 
         # ------------------ APPLY FILTERS ------------------
         if selected_meter_type != "All":
+
             meters_filtered = meters_filtered[
-                meters_filtered["Meter Type"] == selected_meter_type
+                meters_filtered["Meter Type"]
+                == selected_meter_type
             ]
 
         if selected_consumer_type != "All":
+
             meters_filtered = meters_filtered[
-                meters_filtered["Consumer type"] == selected_consumer_type
+                meters_filtered["Consumer type"]
+                == selected_consumer_type
             ]
 
-        if meters_filtered.empty:
-            st.error("No meters found for selected filters.")
+        if meters_filtered.empty():
+
+            st.error(
+                "No meters found for selected filters."
+            )
+
             st.stop()
 
         # ------------------ Distance calculation ------------------
         meters_filtered["Distance_km"] = meters_filtered.apply(
+
             lambda r: haversine_km(
                 user_lat,
                 user_lon,
                 r["Latitude"],
                 r["Longitude"],
             ),
+
             axis=1,
         )
 
         # ------------------ Nearest 100 ------------------
         nearest_100 = (
+
             meters_filtered
             .sort_values("Distance_km")
             .head(100)
             .reset_index(drop=True)
+
         )
 
         # ================== MAP SECTION ==================
@@ -903,10 +893,13 @@ if st.button("📍 Find nearest 100 meters"):
         )
 
         if map_df.empty:
+
             st.warning(
                 "Map cannot be shown: no valid latitude/longitude found."
             )
+
         else:
+
             st.map(map_df[["lat", "lon"]])
 
         # ================== LIST SECTION ==================
@@ -937,12 +930,15 @@ if st.button("📍 Find nearest 100 meters"):
 
         # Google Maps link
         show_df["Google Maps"] = nearest_100.apply(
+
             lambda r:
             f'<a href="https://www.google.com/maps?q={r["Latitude"]},{r["Longitude"]}" target="_blank">📍 Open Map</a>',
+
             axis=1,
         )
 
         st.markdown(
+
             show_df[
                 [
                     "Sr No.",
@@ -956,7 +952,11 @@ if st.button("📍 Find nearest 100 meters"):
                     "Address",
                     "Google Maps",
                 ]
-            ].to_html(index=False, escape=False),
+            ].to_html(
+                index=False,
+                escape=False
+            ),
+
             unsafe_allow_html=True,
         )
 
