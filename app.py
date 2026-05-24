@@ -1083,9 +1083,7 @@ if st.session_state.user == "admin":
 
             st.info("Processing hotspot clusters...")
 
-            hotspot_df = df.dropna(
-                subset=["Latitude", "Longitude"]
-            ).copy()
+            hotspot_df = df.copy()
 
             # ---------- FILTERS ----------
             if hotspot_meter_type != "All":
@@ -1117,17 +1115,37 @@ if st.session_state.user == "admin":
                 subset=["Latitude", "Longitude"]
             )
 
+            # ---------- REMOVE INVALID COORDINATES ----------
+            hotspot_df = hotspot_df[
+
+                (hotspot_df["Latitude"] != 0)
+                &
+                (hotspot_df["Longitude"] != 0)
+
+            ]
+
+            # ---------- INDIA RANGE ----------
+            hotspot_df = hotspot_df[
+
+                hotspot_df["Latitude"].between(6, 38)
+                &
+                hotspot_df["Longitude"].between(68, 98)
+
+            ]
+
             hotspot_df = hotspot_df.reset_index(
                 drop=True
             )
 
             if hotspot_df.empty:
 
-                st.warning("No valid data found.")
+                st.warning(
+                    "No valid hotspot data found."
+                )
 
             else:
 
-                # ---------- HAVERSINE ----------
+                # ---------- HAVERSINE FUNCTION ----------
                 def haversine_meters(
                     lat1,
                     lon1,
@@ -1202,7 +1220,7 @@ if st.session_state.user == "admin":
                         <= hotspot_radius
                     ].copy()
 
-                    # ---------- KEEP ONLY VALID CLUSTERS ----------
+                    # ---------- KEEP VALID CLUSTER ----------
                     if len(cluster_df) > 1:
 
                         cluster_df["Cluster ID"] = (
