@@ -5,3 +5,4 @@ xlsxwriter
 gspread
 google-auth
 streamlit-geolocation
+streamlit-js-eval
