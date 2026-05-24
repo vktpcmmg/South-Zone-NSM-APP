@@ -1021,6 +1021,7 @@ if st.button("📍 Find nearest 100 meters"):
 
 st.markdown("</div>", unsafe_allow_html=True)
 # ================== ADMIN HOTSPOT ANALYTICS ==================
+# ================== ADMIN HOTSPOT ANALYTICS ==================
 
 if st.session_state.user == "admin":
 
@@ -1102,7 +1103,7 @@ if st.session_state.user == "admin":
                     == hotspot_consumer_type
                 ]
 
-            # ---------- NUMERIC CONVERSION ----------
+            # ---------- NUMERIC ----------
             hotspot_df["Latitude"] = pd.to_numeric(
                 hotspot_df["Latitude"],
                 errors="coerce"
@@ -1119,7 +1120,7 @@ if st.session_state.user == "admin":
 
             if hotspot_df.empty:
 
-                st.warning("No data found.")
+                st.warning("No valid data found.")
 
             else:
 
@@ -1165,93 +1166,7 @@ if st.session_state.user == "admin":
 
                 else:
 
-                    # ---------- MAP ----------
-                    center_lat = hotspot_clusters[
-                        "Latitude"
-                    ].mean()
-
-                    center_lon = hotspot_clusters[
-                        "Longitude"
-                    ].mean()
-
-                    hotspot_map = folium.Map(
-                        location=[center_lat, center_lon],
-                        zoom_start=12,
-                        tiles="Esri WorldImagery",
-                    )
-
-                    marker_cluster = MarkerCluster().add_to(
-                        hotspot_map
-                    )
-
-                    # ---------- LIMIT MAP POINTS ----------
-                    max_points = 3000
-
-                    plot_df = hotspot_clusters.head(
-                        max_points
-                    )
-
-                    # ---------- MARKERS ----------
-                    for _, row in plot_df.iterrows():
-
-                        consumer_type = str(
-                            row.get("Consumer type", "")
-                        ).lower()
-
-                        # ---------- COLORS ----------
-                        if (
-                            "direct" in consumer_type
-                            or "switchover" in consumer_type
-                        ):
-
-                            marker_color = "green"
-
-                        elif "changeover" in consumer_type:
-
-                            marker_color = "orange"
-
-                        else:
-
-                            marker_color = "blue"
-
-                        popup_text = f"""
-                        <b>Meter No:</b> {row.get('Meter No.', '')}<br>
-                        <b>Consumer:</b> {row.get('Consumer Name', '')}<br>
-                        <b>Building:</b> {row.get('Building Name', '')}<br>
-                        <b>Consumer Type:</b> {row.get('Consumer type', '')}<br>
-                        """
-
-                        folium.CircleMarker(
-
-                            location=[
-                                row["Latitude"],
-                                row["Longitude"]
-                            ],
-
-                            radius=2,
-
-                            color=marker_color,
-
-                            fill=True,
-
-                            fill_color=marker_color,
-
-                            fill_opacity=0.7,
-
-                            popup=popup_text,
-
-                        ).add_to(marker_cluster)
-
-                    # ---------- SHOW MAP ----------
-                    st.subheader("🗺️ Hotspot Cluster Map")
-
-                    st_folium(
-                        hotspot_map,
-                        width=None,
-                        height=600,
-                    )
-
-                    # ---------- SUMMARY ----------
+                    # ---------- HOTSPOT SUMMARY ----------
                     hotspot_summary = (
 
                         hotspot_clusters
@@ -1274,6 +1189,43 @@ if st.session_state.user == "admin":
                         use_container_width=True,
                     )
 
+                    # ---------- HOTSPOT METER LIST ----------
+                    st.subheader(
+                        "📋 Hotspot Meter List"
+                    )
+
+                    hotspot_show = hotspot_clusters[
+                        [
+                            "cluster",
+                            "Meter No.",
+                            "Consumer Name",
+                            "Consumer type",
+                            "Meter Type",
+                            "Building Name",
+                            "Address",
+                            "Latitude",
+                            "Longitude",
+                        ]
+                    ].copy()
+
+                    hotspot_show = hotspot_show.rename(
+                        columns={
+                            "cluster": "Cluster ID"
+                        }
+                    )
+
+                    hotspot_show.insert(
+                        0,
+                        "Sr No.",
+                        range(1, len(hotspot_show) + 1)
+                    )
+
+                    st.dataframe(
+                        hotspot_show,
+                        use_container_width=True,
+                        height=500,
+                    )
+
                     # ---------- DOWNLOAD ----------
                     from io import BytesIO
 
@@ -1284,7 +1236,7 @@ if st.session_state.user == "admin":
                         engine="xlsxwriter"
                     ) as writer:
 
-                        hotspot_clusters.to_excel(
+                        hotspot_show.to_excel(
                             writer,
                             index=False,
                             sheet_name="Hotspot_Clusters",
@@ -1293,7 +1245,7 @@ if st.session_state.user == "admin":
                     buffer.seek(0)
 
                     st.download_button(
-                        "⬇️ Download Hotspot Cluster Excel",
+                        "⬇️ Download Hotspot Excel",
                         data=buffer,
                         file_name="hotspot_clusters.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
