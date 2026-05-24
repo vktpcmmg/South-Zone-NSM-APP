@@ -1015,3 +1015,249 @@ if st.button("📍 Find nearest 100 meters"):
             )
 
 st.markdown("</div>", unsafe_allow_html=True)
+# ================== ADMIN HOTSPOT ANALYTICS ==================
+
+if st.session_state.user == "admin":
+
+    st.markdown(
+        '<div class="section-title">🔥 Meter Hotspot Analytics</div>',
+        unsafe_allow_html=True,
+    )
+
+    with st.expander("Show hotspot clusters"):
+
+        # ---------- FILTERS ----------
+        col1, col2, col3, col4 = st.columns(4)
+
+        with col1:
+
+            meter_type_options = ["All"] + sorted(
+                df["Meter Type"].dropna().unique().tolist()
+            )
+
+            hotspot_meter_type = st.selectbox(
+                "Meter Type",
+                meter_type_options,
+                key="hotspot_meter_type"
+            )
+
+        with col2:
+
+            consumer_type_options = ["All"] + sorted(
+                df["Consumer type"].dropna().unique().tolist()
+            )
+
+            hotspot_consumer_type = st.selectbox(
+                "Consumer Type",
+                consumer_type_options,
+                key="hotspot_consumer_type"
+            )
+
+        with col3:
+
+            hotspot_radius = st.number_input(
+                "Radius Distance (meters)",
+                min_value=50,
+                max_value=5000,
+                value=300,
+                step=50,
+            )
+
+        with col4:
+
+            hotspot_meter_count = st.number_input(
+                "Minimum Meter Count",
+                min_value=10,
+                max_value=5000,
+                value=500,
+                step=10,
+            )
+
+        # ---------- SEARCH ----------
+        if st.button("🔥 Find Hotspots"):
+
+            hotspot_df = df.dropna(
+                subset=["Latitude", "Longitude"]
+            ).copy()
+
+            # ---------- FILTERS ----------
+            if hotspot_meter_type != "All":
+
+                hotspot_df = hotspot_df[
+                    hotspot_df["Meter Type"]
+                    == hotspot_meter_type
+                ]
+
+            if hotspot_consumer_type != "All":
+
+                hotspot_df = hotspot_df[
+                    hotspot_df["Consumer type"]
+                    == hotspot_consumer_type
+                ]
+
+            if hotspot_df.empty:
+
+                st.warning("No data found.")
+
+            else:
+
+                # ---------- DBSCAN CLUSTER ----------
+                coords = hotspot_df[
+                    ["Latitude", "Longitude"]
+                ].to_numpy()
+
+                kms_per_radian = 6371.0088
+
+                epsilon = (
+                    hotspot_radius / 1000
+                ) / kms_per_radian
+
+                db = DBSCAN(
+                    eps=epsilon,
+                    min_samples=hotspot_meter_count,
+                    algorithm="ball_tree",
+                    metric="haversine",
+                ).fit(
+                    np.radians(coords)
+                )
+
+                hotspot_df["cluster"] = db.labels_
+
+                hotspot_clusters = hotspot_df[
+                    hotspot_df["cluster"] != -1
+                ].copy()
+
+                if hotspot_clusters.empty:
+
+                    st.warning(
+                        "No hotspot clusters found."
+                    )
+
+                else:
+
+                    # ---------- MAP ----------
+                    center_lat = hotspot_clusters[
+                        "Latitude"
+                    ].mean()
+
+                    center_lon = hotspot_clusters[
+                        "Longitude"
+                    ].mean()
+
+                    hotspot_map = folium.Map(
+                        location=[center_lat, center_lon],
+                        zoom_start=12,
+                        tiles="Esri WorldImagery",
+                    )
+
+                    marker_cluster = MarkerCluster().add_to(
+                        hotspot_map
+                    )
+
+                    # ---------- MARKERS ----------
+                    for _, row in hotspot_clusters.iterrows():
+
+                        consumer_type = str(
+                            row.get("Consumer type", "")
+                        ).lower()
+
+                        # ---------- COLORS ----------
+                        if (
+                            "direct" in consumer_type
+                            or "switchover" in consumer_type
+                        ):
+
+                            marker_color = "green"
+
+                        elif "changeover" in consumer_type:
+
+                            marker_color = "orange"
+
+                        else:
+
+                            marker_color = "blue"
+
+                        popup_text = f"""
+                        <b>Meter No:</b> {row.get('Meter No.', '')}<br>
+                        <b>Consumer:</b> {row.get('Consumer Name', '')}<br>
+                        <b>Building:</b> {row.get('Building Name', '')}<br>
+                        <b>Consumer Type:</b> {row.get('Consumer type', '')}<br>
+                        """
+
+                        folium.CircleMarker(
+
+                            location=[
+                                row["Latitude"],
+                                row["Longitude"]
+                            ],
+
+                            radius=5,
+
+                            color=marker_color,
+
+                            fill=True,
+
+                            fill_color=marker_color,
+
+                            fill_opacity=0.8,
+
+                            popup=popup_text,
+
+                        ).add_to(marker_cluster)
+
+                    # ---------- SHOW MAP ----------
+                    st.subheader("🗺️ Hotspot Cluster Map")
+
+                    st_folium(
+                        hotspot_map,
+                        width=1200,
+                        height=700,
+                    )
+
+                    # ---------- HOTSPOT SUMMARY ----------
+                    hotspot_summary = (
+
+                        hotspot_clusters
+                        .groupby("cluster")
+                        .size()
+                        .reset_index(name="Meter Count")
+                        .sort_values(
+                            "Meter Count",
+                            ascending=False
+                        )
+
+                    )
+
+                    st.subheader(
+                        "🔥 Hotspot Cluster Summary"
+                    )
+
+                    st.dataframe(
+                        hotspot_summary,
+                        use_container_width=True,
+                    )
+
+                    # ---------- DOWNLOAD ----------
+                    from io import BytesIO
+
+                    buffer = BytesIO()
+
+                    with pd.ExcelWriter(
+                        buffer,
+                        engine="xlsxwriter"
+                    ) as writer:
+
+                        hotspot_clusters.to_excel(
+                            writer,
+                            index=False,
+                            sheet_name="Hotspot_Clusters",
+                        )
+
+                    buffer.seek(0)
+
+                    st.download_button(
+                        "⬇️ Download Hotspot Cluster Excel",
+                        data=buffer,
+                        file_name="hotspot_clusters.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
