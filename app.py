@@ -11,25 +11,41 @@ from zoneinfo import ZoneInfo
 
 import base64
 def get_current_location():
+def get_current_location():
     components.html(
         """
         <script>
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                const latitude = Number(position.coords.latitude.toFixed(6));
-                const longitude = Number(position.coords.longitude.toFixed(6));
+        function sendLocation(position) {
+            const latitude = position.coords.latitude;
+            const longitude = position.coords.longitude;
 
-                const params = new URLSearchParams(window.location.search);
-                params.set("lat", lat);
-                params.set("lon", lon);
+            const streamlitDoc = window.parent.document;
 
-                window.location.search = params.toString();
-            },
-            (err) => {
-                const params = new URLSearchParams(window.location.search);
-                params.set("lat", "ERROR");
-                window.location.search = params.toString();
+            const latInput = streamlitDoc.querySelector('input[aria-label="Your current latitude"]');
+            const lonInput = streamlitDoc.querySelector('input[aria-label="Your current longitude"]');
+
+            if (latInput && lonInput) {
+
+                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                    window.HTMLInputElement.prototype,
+                    "value"
+                ).set;
+
+                nativeInputValueSetter.call(latInput, latitude);
+                nativeInputValueSetter.call(lonInput, longitude);
+
+                latInput.dispatchEvent(new Event('input', { bubbles: true }));
+                lonInput.dispatchEvent(new Event('input', { bubbles: true }));
             }
+        }
+
+        function locationError(error) {
+            alert("Unable to fetch location. Please allow GPS permission.");
+        }
+
+        navigator.geolocation.getCurrentPosition(
+            sendLocation,
+            locationError
         );
         </script>
         """,
