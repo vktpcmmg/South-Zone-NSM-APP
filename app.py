@@ -8,8 +8,34 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from streamlit_js_eval import get_geolocation
-from streamlit_js_eval import streamlit_js_eval
+def get_current_location():
+    components.html(
+        """
+        <script>
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+
+                const lat = pos.coords.latitude.toFixed(6);
+                const lon = pos.coords.longitude.toFixed(6);
+
+                const params = new URLSearchParams(window.location.search);
+
+                params.set("lat", lat);
+                params.set("lon", lon);
+
+                window.location.search = params.toString();
+            },
+
+            (err) => {
+                alert("Location access denied.");
+            }
+        );
+
+        </script>
+        """,
+        height=0,
+    )
 
 import base64
 def load_logo():
@@ -739,61 +765,34 @@ with st.expander("Show nearest 100 meters on map"):
 
 st.markdown("### 📍 Location Input")
 
-# ---------- SESSION STATE ----------
-if "user_lat" not in st.session_state:
-    st.session_state.user_lat = 0.0
-
-if "user_lon" not in st.session_state:
-    st.session_state.user_lon = 0.0
-
-# ---------- AUTO FETCH ----------
+# ---------- AUTO FETCH BUTTON ----------
 if st.button("📡 Auto Fetch My Current Location"):
+    get_current_location()
 
-    location = streamlit_js_eval(
-        js_expressions="""
-        new Promise((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(
-                (position) => {
-                    resolve({
-                        lat: position.coords.latitude,
-                        lon: position.coords.longitude
-                    });
-                },
-                (error) => {
-                    resolve(null);
-                }
-            );
-        })
-        """,
-        key="get_location"
-    )
+# ---------- READ URL PARAMS ----------
+query_params = st.query_params
 
-    if location is not None:
+default_lat = 0.0
+default_lon = 0.0
 
-        st.session_state.user_lat = round(
-            location["lat"],
+try:
+
+    if "lat" in query_params:
+        default_lat = round(
+            float(query_params["lat"]),
             6
         )
 
-        st.session_state.user_lon = round(
-            location["lon"],
+    if "lon" in query_params:
+        default_lon = round(
+            float(query_params["lon"]),
             6
         )
 
-        st.success(
-            f"Location fetched successfully → "
-            f"{st.session_state.user_lat}, "
-            f"{st.session_state.user_lon}"
-        )
+except:
+    pass
 
-    else:
-
-        st.error(
-            "Unable to fetch location. "
-            "Please allow GPS permission."
-        )
-
-# ---------- MANUAL ENTRY ----------
+# ---------- INPUT BOXES ----------
 col1, col2 = st.columns(2)
 
 with col1:
@@ -801,7 +800,8 @@ with col1:
     user_lat = st.number_input(
         "Your current latitude",
         format="%.6f",
-        key="user_lat",
+        value=default_lat,
+        key="user_latitude",
     )
 
 with col2:
@@ -809,7 +809,8 @@ with col2:
     user_lon = st.number_input(
         "Your current longitude",
         format="%.6f",
-        key="user_lon",
+        value=default_lon,
+        key="user_longitude",
     )
 
 # ================== ACTION ==================
