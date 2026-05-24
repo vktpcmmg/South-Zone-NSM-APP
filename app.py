@@ -1064,7 +1064,7 @@ if st.session_state.user == "admin":
                 "Radius Distance (meters)",
                 min_value=50,
                 max_value=5000,
-                value=300,
+                value=200,
                 step=50,
             )
 
@@ -1074,12 +1074,14 @@ if st.session_state.user == "admin":
                 "Minimum Meter Count",
                 min_value=10,
                 max_value=5000,
-                value=500,
+                value=100,
                 step=10,
             )
 
         # ---------- SEARCH ----------
         if st.button("🔥 Find Hotspots"):
+
+            st.info("Processing hotspot clusters...")
 
             hotspot_df = df.dropna(
                 subset=["Latitude", "Longitude"]
@@ -1100,13 +1102,36 @@ if st.session_state.user == "admin":
                     == hotspot_consumer_type
                 ]
 
+            # ---------- NUMERIC CONVERSION ----------
+            hotspot_df["Latitude"] = pd.to_numeric(
+                hotspot_df["Latitude"],
+                errors="coerce"
+            )
+
+            hotspot_df["Longitude"] = pd.to_numeric(
+                hotspot_df["Longitude"],
+                errors="coerce"
+            )
+
+            hotspot_df = hotspot_df.dropna(
+                subset=["Latitude", "Longitude"]
+            )
+
             if hotspot_df.empty:
 
                 st.warning("No data found.")
 
             else:
 
-                # ---------- DBSCAN CLUSTER ----------
+                # ---------- LIMIT LARGE DATA ----------
+                if len(hotspot_df) > 15000:
+
+                    hotspot_df = hotspot_df.sample(
+                        15000,
+                        random_state=42
+                    )
+
+                # ---------- DBSCAN ----------
                 coords = hotspot_df[
                     ["Latitude", "Longitude"]
                 ].to_numpy()
@@ -1159,8 +1184,15 @@ if st.session_state.user == "admin":
                         hotspot_map
                     )
 
+                    # ---------- LIMIT MAP POINTS ----------
+                    max_points = 3000
+
+                    plot_df = hotspot_clusters.head(
+                        max_points
+                    )
+
                     # ---------- MARKERS ----------
-                    for _, row in hotspot_clusters.iterrows():
+                    for _, row in plot_df.iterrows():
 
                         consumer_type = str(
                             row.get("Consumer type", "")
@@ -1196,7 +1228,7 @@ if st.session_state.user == "admin":
                                 row["Longitude"]
                             ],
 
-                            radius=5,
+                            radius=2,
 
                             color=marker_color,
 
@@ -1204,7 +1236,7 @@ if st.session_state.user == "admin":
 
                             fill_color=marker_color,
 
-                            fill_opacity=0.8,
+                            fill_opacity=0.7,
 
                             popup=popup_text,
 
@@ -1215,11 +1247,11 @@ if st.session_state.user == "admin":
 
                     st_folium(
                         hotspot_map,
-                        width=1200,
-                        height=700,
+                        width=None,
+                        height=600,
                     )
 
-                    # ---------- HOTSPOT SUMMARY ----------
+                    # ---------- SUMMARY ----------
                     hotspot_summary = (
 
                         hotspot_clusters
