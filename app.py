@@ -16,8 +16,8 @@ def get_current_location():
         <script>
         navigator.geolocation.getCurrentPosition(
             (pos) => {
-                const lat = pos.coords.latitude;
-                const lon = pos.coords.longitude;
+                const latitude = Number(position.coords.latitude.toFixed(6));
+                const longitude = Number(position.coords.longitude.toFixed(6));
 
                 const params = new URLSearchParams(window.location.search);
                 params.set("lat", lat);
