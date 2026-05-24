@@ -759,21 +759,54 @@ with st.expander("Show nearest 100 meters on map"):
     st.divider()
 
     # ================== LOCATION INPUT ==================
-    col1, col2 = st.columns(2)
+# ================== AUTO + MANUAL LOCATION INPUT ==================
 
-    with col1:
-        user_lat = st.number_input(
-            "Your current latitude",
-            format="%.6f",
-            help="Copy from Google Maps blue dot",
+st.markdown("### 📍 Location Input")
+
+# ---------- AUTO FETCH BUTTON ----------
+if st.button("📡 Auto Fetch My Current Location"):
+    get_current_location()
+
+# ---------- READ URL PARAMS ----------
+query_params = st.query_params
+
+auto_lat = 0.0
+auto_lon = 0.0
+
+try:
+    if "lat" in query_params and "lon" in query_params:
+        auto_lat = float(query_params["lat"])
+        auto_lon = float(query_params["lon"])
+
+        st.success(
+            f"Location fetched successfully → "
+            f"Lat: {auto_lat:.6f}, Lon: {auto_lon:.6f}"
         )
 
-    with col2:
-        user_lon = st.number_input(
-            "Your current longitude",
-            format="%.6f",
-            help="Copy from Google Maps blue dot",
-        )
+except:
+    st.warning("Location permission denied or GPS unavailable.")
+
+# ---------- MANUAL ENTRY ----------
+col1, col2 = st.columns(2)
+
+with col1:
+    user_lat = st.number_input(
+        "Your current latitude",
+        format="%.6f",
+        value=auto_lat,
+        help="Auto-filled from GPS OR enter manually",
+        key="user_latitude",
+    )
+
+with col2:
+    user_lon = st.number_input(
+        "Your current longitude",
+        format="%.6f",
+        value=auto_lon,
+        help="Auto-filled from GPS OR enter manually",
+        key="user_longitude",
+    )
+    
 
     # ================== ACTION ==================
     if st.button("📍 Find nearest 100 meters"):
