@@ -820,7 +820,7 @@ with col1:
     user_lat = st.number_input(
         "Your current latitude",
         format="%.6f",
-        value=auto_lat,
+        value=round(auto_lat, 6),
         help="Auto-filled from GPS OR enter manually",
         key="user_latitude",
     )
@@ -829,7 +829,7 @@ with col2:
     user_lon = st.number_input(
         "Your current longitude",
         format="%.6f",
-        value=auto_lon,
+        value=round(auto_lon, 6),
         help="Auto-filled from GPS OR enter manually",
         key="user_longitude",
     )
