@@ -16,8 +16,8 @@ def get_current_location():
         <script>
         function sendLocation(position) {
 
-            const latitude = position.coords.latitude;
-            const longitude = position.coords.longitude;
+            const latitude = Number(position.coords.latitude.toFixed(6));
+            const longitude = Number(position.coords.longitude.toFixed(6));
 
             const streamlitDoc = window.parent.document;
 
