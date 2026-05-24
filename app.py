@@ -8,7 +8,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from streamlit_js_eval import get_geolocation
+from streamlit_js_eval import streamlit_js_eval
 
 import base64
 def load_logo():
@@ -734,10 +734,11 @@ with st.expander("Show nearest 100 meters on map"):
     st.divider()
 
 # ================== LOCATION INPUT ==================
+# ================== LOCATION INPUT ==================
 
 st.markdown("### 📍 Location Input")
 
-# ---------- DEFAULT VALUES ----------
+# ---------- SESSION STATE ----------
 if "user_lat" not in st.session_state:
     st.session_state.user_lat = 0.0
 
@@ -747,33 +748,49 @@ if "user_lon" not in st.session_state:
 # ---------- AUTO FETCH ----------
 if st.button("📡 Auto Fetch My Current Location"):
 
-    loc = get_geolocation()
+    location = streamlit_js_eval(
+        js_expressions="""
+        new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    resolve({
+                        lat: position.coords.latitude,
+                        lon: position.coords.longitude
+                    });
+                },
+                (error) => {
+                    resolve(null);
+                }
+            );
+        })
+        """,
+        key="get_location"
+    )
 
-    if loc is not None:
+    if location is not None:
 
-        try:
+        st.session_state.user_lat = round(
+            location["lat"],
+            6
+        )
 
-            st.session_state.user_lat = round(
-                loc["coords"]["latitude"],
-                6
-            )
+        st.session_state.user_lon = round(
+            location["lon"],
+            6
+        )
 
-            st.session_state.user_lon = round(
-                loc["coords"]["longitude"],
-                6
-            )
+        st.success(
+            f"Location fetched successfully → "
+            f"{st.session_state.user_lat}, "
+            f"{st.session_state.user_lon}"
+        )
 
-            st.success(
-                f"Location fetched successfully → "
-                f"{st.session_state.user_lat}, "
-                f"{st.session_state.user_lon}"
-            )
+    else:
 
-        except:
-
-            st.error(
-                "Unable to fetch GPS coordinates."
-            )
+        st.error(
+            "Unable to fetch location. "
+            "Please allow GPS permission."
+        )
 
 # ---------- MANUAL ENTRY ----------
 col1, col2 = st.columns(2)
@@ -885,7 +902,8 @@ if st.button("📍 Find nearest 100 meters"):
         if map_df.empty:
 
             st.warning(
-                "Map cannot be shown: no valid latitude/longitude found."
+                "Map cannot be shown: "
+                "no valid latitude/longitude found."
             )
 
         else:
@@ -918,7 +936,7 @@ if st.button("📍 Find nearest 100 meters"):
             show_df["Distance_km"].round(2)
         )
 
-        # Google Maps link
+        # ---------- GOOGLE MAPS LINK ----------
         show_df["Google Maps"] = nearest_100.apply(
 
             lambda r:
