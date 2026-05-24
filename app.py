@@ -785,7 +785,7 @@ with st.expander("Show nearest 100 meters on map"):
 
     st.divider()
 
-    # ================== LOCATION INPUT ==================
+# ================== LOCATION INPUT ==================
 # ================== LOCATION INPUT ==================
 
 st.markdown("### 📍 Location Input")
@@ -950,34 +950,46 @@ if st.button("📍 Find nearest 100 meters"):
             ].to_html(index=False, escape=False),
             unsafe_allow_html=True,
         )
-            # ================== DOWNLOAD ==================
-            from io import BytesIO
 
-            download_df = show_df.copy()
-            download_df["Google Maps"] = download_df["Google Maps"].str.extract(
-                r'href="([^"]+)"'
+        # ================== DOWNLOAD ==================
+
+        from io import BytesIO
+
+        download_df = show_df.copy()
+
+        download_df["Google Maps"] = download_df[
+            "Google Maps"
+        ].str.extract(
+            r'href="([^"]+)"'
+        )
+
+        buffer = BytesIO()
+
+        with pd.ExcelWriter(
+            buffer,
+            engine="xlsxwriter"
+        ) as writer:
+
+            download_df.to_excel(
+                writer,
+                index=False,
+                sheet_name="Nearest_100_Meters",
             )
 
-            buffer = BytesIO()
-            with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
-                download_df.to_excel(
-                    writer,
-                    index=False,
-                    sheet_name="Nearest_100_Meters",
-                )
+        buffer.seek(0)
 
-            buffer.seek(0)
+        if remaining_downloads > 0:
 
-            if remaining_downloads > 0:
-                st.download_button(
-                    "⬇️ Download Nearest 100 Meters List (Excel)",
-                    data=buffer,
-                    file_name="nearest_100_meters.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    on_click=log_activity,
-                    args=(st.session_state.user, "Download"),
-                )
-            else:
-                st.warning("Download limit reached for today.")
+            st.download_button(
+                "⬇️ Download Nearest 100 Meters List (Excel)",
+                data=buffer,
+                file_name="nearest_100_meters.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                on_click=log_activity,
+                args=(st.session_state.user, "Download"),
+            )
 
-st.markdown("</div>", unsafe_allow_html=True)  # close main-container
+        else:
+            st.warning("Download limit reached for today.")
+
+st.markdown("</div>", unsafe_allow_html=True)
