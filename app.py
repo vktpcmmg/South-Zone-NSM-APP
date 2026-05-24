@@ -11,36 +11,47 @@ from zoneinfo import ZoneInfo
 
 import base64
 def get_current_location():
-def get_current_location():
     components.html(
         """
         <script>
         function sendLocation(position) {
+
             const latitude = position.coords.latitude;
             const longitude = position.coords.longitude;
 
             const streamlitDoc = window.parent.document;
 
-            const latInput = streamlitDoc.querySelector('input[aria-label="Your current latitude"]');
-            const lonInput = streamlitDoc.querySelector('input[aria-label="Your current longitude"]');
+            const latInput = streamlitDoc.querySelector(
+                'input[aria-label="Your current latitude"]'
+            );
+
+            const lonInput = streamlitDoc.querySelector(
+                'input[aria-label="Your current longitude"]'
+            );
 
             if (latInput && lonInput) {
 
-                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                    window.HTMLInputElement.prototype,
-                    "value"
-                ).set;
+                const nativeInputValueSetter =
+                    Object.getOwnPropertyDescriptor(
+                        window.HTMLInputElement.prototype,
+                        "value"
+                    ).set;
 
                 nativeInputValueSetter.call(latInput, latitude);
                 nativeInputValueSetter.call(lonInput, longitude);
 
-                latInput.dispatchEvent(new Event('input', { bubbles: true }));
-                lonInput.dispatchEvent(new Event('input', { bubbles: true }));
+                latInput.dispatchEvent(
+                    new Event('input', { bubbles: true })
+                );
+
+                lonInput.dispatchEvent(
+                    new Event('input', { bubbles: true })
+                );
             }
         }
 
         function locationError(error) {
-            alert("Unable to fetch location. Please allow GPS permission.");
+            alert("Please allow location permission.");
         }
 
         navigator.geolocation.getCurrentPosition(
