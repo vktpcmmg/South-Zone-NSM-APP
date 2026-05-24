@@ -8,7 +8,6 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from zoneinfo import ZoneInfo
-from streamlit_geolocation import streamlit_geolocation
 
 import base64
 def get_current_location():
@@ -74,7 +73,7 @@ st.markdown(
 st.markdown(
     """
     <h4 style='text-align: center; color: #6b7280; margin-top: -10px;'>
-        <span style='color:#0072C6; font-weight:700;'>Tata Power - MIT South Zone</span> | Non-Smart Meter Consumer Data Search & Navigation 
+        <span style='color:#0072C6; font-weight:700;'>Tata Power - MIT South & City Zone</span> | Non-Smart Meter Consumer Data Search & Navigation 
     </h4>
     <br>
     """,
@@ -260,7 +259,7 @@ if "user" not in st.session_state:
     st.session_state.user = None
 
 def show_login():
-    st.title("🔐 Secure Login - South & City Zone")
+    st.title("🔐 Secure Login")
 
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
@@ -728,11 +727,7 @@ with st.expander("🗺️ Route planner (auto-group up to 100 meters)"):
                         start_index += len(group_df)
                         
 #--------------------------------Current Location Logic-----------------------------------                       
-
 # -------------------------------- Current Location Logic --------------------------------
-
-st.markdown("---")
-
 st.markdown(
     '<div class="section-title">📍 Nearest meters from my location</div>',
     unsafe_allow_html=True,
@@ -764,40 +759,24 @@ with st.expander("Show nearest 100 meters on map"):
     st.divider()
 
     # ================== LOCATION INPUT ==================
-    from streamlit_geolocation import streamlit_geolocation
-
-    st.markdown("### 📍 Get Current Location")
-    st.write("👉 Click below icon to fetch your current location")
-
-    location = streamlit_geolocation()
-
-    if location:
-        auto_lat = location["latitude"]
-        auto_lon = location["longitude"]
-    else:
-        auto_lat = 0.0
-        auto_lon = 0.0
-
     col1, col2 = st.columns(2)
 
     with col1:
         user_lat = st.number_input(
             "Your current latitude",
             format="%.6f",
-            value=auto_lat,
+            help="Copy from Google Maps blue dot",
         )
 
     with col2:
         user_lon = st.number_input(
             "Your current longitude",
             format="%.6f",
-            value=auto_lon,
+            help="Copy from Google Maps blue dot",
         )
 
     # ================== ACTION ==================
-    find_btn = st.button("📍 Find nearest 100 meters")
-
-    if find_btn:
+    if st.button("📍 Find nearest 100 meters"):
 
         if user_lat == 0 or user_lon == 0:
             st.warning("Please enter valid latitude and longitude.")
@@ -881,6 +860,7 @@ with st.expander("Show nearest 100 meters on map"):
             show_df.insert(0, "Sr No.", range(1, len(show_df) + 1))
             show_df["Distance_km"] = show_df["Distance_km"].round(2)
 
+            # Google Maps link
             show_df["Google Maps"] = nearest_100.apply(
                 lambda r: f'<a href="https://www.google.com/maps?q={r["Latitude"]},{r["Longitude"]}" target="_blank">📍 Open Map</a>',
                 axis=1,
@@ -934,4 +914,4 @@ with st.expander("Show nearest 100 meters on map"):
             else:
                 st.warning("Download limit reached for today.")
 
-st.markdown("</div>", unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)  # close main-container
