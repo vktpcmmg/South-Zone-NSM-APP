@@ -786,7 +786,7 @@ with st.expander("Show nearest 100 meters on map"):
     st.divider()
 
     # ================== LOCATION INPUT ==================
-# ================== AUTO + MANUAL LOCATION INPUT ==================
+# ================== LOCATION INPUT ==================
 
 st.markdown("### 📍 Location Input")
 
@@ -794,156 +794,162 @@ st.markdown("### 📍 Location Input")
 if st.button("📡 Auto Fetch My Current Location"):
     get_current_location()
 
-# ---------- READ URL PARAMS ----------
-query_params = st.query_params
+# ---------- SESSION STATE ----------
+if "user_latitude" not in st.session_state:
+    st.session_state.user_latitude = 0.0
 
-auto_lat = 0.0
-auto_lon = 0.0
+if "user_longitude" not in st.session_state:
+    st.session_state.user_longitude = 0.0
 
-try:
-    if "lat" in query_params and "lon" in query_params:
-        auto_lat = float(query_params["lat"])
-        auto_lon = float(query_params["lon"])
-
-        st.success(
-            f"Location fetched successfully → "
-            f"Lat: {auto_lat:.6f}, Lon: {auto_lon:.6f}"
-        )
-
-except:
-    st.warning("Location permission denied or GPS unavailable.")
-
-# ---------- MANUAL ENTRY ----------
+# ---------- INPUT BOXES ----------
 col1, col2 = st.columns(2)
 
 with col1:
     user_lat = st.number_input(
         "Your current latitude",
         format="%.6f",
-        value=auto_lat,
-        help="Auto-filled from GPS OR enter manually",
         key="user_latitude",
+        help="Auto-filled from GPS OR enter manually",
     )
 
 with col2:
     user_lon = st.number_input(
         "Your current longitude",
         format="%.6f",
-        value=auto_lon,
-        help="Auto-filled from GPS OR enter manually",
         key="user_longitude",
+        help="Auto-filled from GPS OR enter manually",
     )
-    
 
-    # ================== ACTION ==================
-    if st.button("📍 Find nearest 100 meters"):
+# ================== ACTION ==================
+if st.button("📍 Find nearest 100 meters"):
 
-        if user_lat == 0 or user_lon == 0:
-            st.warning("Please enter valid latitude and longitude.")
+    if user_lat == 0 or user_lon == 0:
+        st.warning("Please enter valid latitude and longitude.")
 
+    else:
+
+        # ------------------ Base data with coordinates ------------------
+        meters_filtered = df.dropna(
+            subset=["Latitude", "Longitude"]
+        ).copy()
+
+        # ------------------ APPLY FILTERS ------------------
+        if selected_meter_type != "All":
+            meters_filtered = meters_filtered[
+                meters_filtered["Meter Type"] == selected_meter_type
+            ]
+
+        if selected_consumer_type != "All":
+            meters_filtered = meters_filtered[
+                meters_filtered["Consumer type"] == selected_consumer_type
+            ]
+
+        if meters_filtered.empty:
+            st.error("No meters found for selected filters.")
+            st.stop()
+
+        # ------------------ Distance calculation ------------------
+        meters_filtered["Distance_km"] = meters_filtered.apply(
+            lambda r: haversine_km(
+                user_lat,
+                user_lon,
+                r["Latitude"],
+                r["Longitude"],
+            ),
+            axis=1,
+        )
+
+        # ------------------ Nearest 100 ------------------
+        nearest_100 = (
+            meters_filtered
+            .sort_values("Distance_km")
+            .head(100)
+            .reset_index(drop=True)
+        )
+
+        # ================== MAP SECTION ==================
+        st.subheader("🗺️ Nearest 100 meters (map)")
+
+        map_df = nearest_100.copy()
+
+        map_df["Latitude"] = pd.to_numeric(
+            map_df["Latitude"],
+            errors="coerce"
+        )
+
+        map_df["Longitude"] = pd.to_numeric(
+            map_df["Longitude"],
+            errors="coerce"
+        )
+
+        map_df = map_df.dropna(
+            subset=["Latitude", "Longitude"]
+        )
+
+        map_df = map_df.rename(
+            columns={
+                "Latitude": "lat",
+                "Longitude": "lon",
+            }
+        )
+
+        if map_df.empty:
+            st.warning(
+                "Map cannot be shown: no valid latitude/longitude found."
+            )
         else:
-            # ------------------ Base data with coordinates ------------------
-            meters_filtered = df.dropna(
-                subset=["Latitude", "Longitude"]
-            ).copy()
+            st.map(map_df[["lat", "lon"]])
 
-            # ------------------ APPLY FILTERS ------------------
-            if selected_meter_type != "All":
-                meters_filtered = meters_filtered[
-                    meters_filtered["Meter Type"] == selected_meter_type
-                ]
+        # ================== LIST SECTION ==================
+        st.subheader("📋 Nearest 100 meters list")
 
-            if selected_consumer_type != "All":
-                meters_filtered = meters_filtered[
-                    meters_filtered["Consumer type"] == selected_consumer_type
-                ]
+        show_df = nearest_100[
+            [
+                "Meter No.",
+                "Consumer Name",
+                "Building ID",
+                "Building Name",
+                "Consumer type",
+                "Meter Type",
+                "Address",
+                "Distance_km",
+            ]
+        ].copy()
 
-            if meters_filtered.empty:
-                st.error("No meters found for selected filters.")
-                st.stop()
+        show_df.insert(
+            0,
+            "Sr No.",
+            range(1, len(show_df) + 1)
+        )
 
-            # ------------------ Distance calculation ------------------
-            meters_filtered["Distance_km"] = meters_filtered.apply(
-                lambda r: haversine_km(
-                    user_lat,
-                    user_lon,
-                    r["Latitude"],
-                    r["Longitude"],
-                ),
-                axis=1,
-            )
+        show_df["Distance_km"] = (
+            show_df["Distance_km"].round(2)
+        )
 
-            # ------------------ Nearest 100 ------------------
-            nearest_100 = (
-                meters_filtered
-                .sort_values("Distance_km")
-                .head(100)
-                .reset_index(drop=True)
-            )
+        # Google Maps link
+        show_df["Google Maps"] = nearest_100.apply(
+            lambda r:
+            f'<a href="https://www.google.com/maps?q={r["Latitude"]},{r["Longitude"]}" target="_blank">📍 Open Map</a>',
+            axis=1,
+        )
 
-            # ================== MAP SECTION ==================
-            st.subheader("🗺️ Nearest 100 meters (map)")
-
-            map_df = nearest_100.copy()
-            map_df["Latitude"] = pd.to_numeric(map_df["Latitude"], errors="coerce")
-            map_df["Longitude"] = pd.to_numeric(map_df["Longitude"], errors="coerce")
-            map_df = map_df.dropna(subset=["Latitude", "Longitude"])
-
-            map_df = map_df.rename(
-                columns={
-                    "Latitude": "lat",
-                    "Longitude": "lon",
-                }
-            )
-
-            if map_df.empty:
-                st.warning("Map cannot be shown: no valid latitude/longitude found.")
-            else:
-                st.map(map_df[["lat", "lon"]])
-
-            # ================== LIST SECTION ==================
-            st.subheader("📋 Nearest 100 meters list")
-
-            show_df = nearest_100[
+        st.markdown(
+            show_df[
                 [
+                    "Sr No.",
                     "Meter No.",
-                    "Consumer Name",
-                    "Building ID",
                     "Building Name",
+                    "Building ID",
+                    "Distance_km",
+                    "Consumer Name",
                     "Consumer type",
                     "Meter Type",
                     "Address",
-                    "Distance_km",
+                    "Google Maps",
                 ]
-            ].copy()
-
-            show_df.insert(0, "Sr No.", range(1, len(show_df) + 1))
-            show_df["Distance_km"] = show_df["Distance_km"].round(2)
-
-            # Google Maps link
-            show_df["Google Maps"] = nearest_100.apply(
-                lambda r: f'<a href="https://www.google.com/maps?q={r["Latitude"]},{r["Longitude"]}" target="_blank">📍 Open Map</a>',
-                axis=1,
-            )
-
-            st.markdown(
-                show_df[
-                    [
-                        "Sr No.",
-                        "Meter No.",
-                        "Building Name",
-                        "Building ID",
-                        "Distance_km",
-                        "Consumer Name",
-                        "Consumer type",
-                        "Meter Type",
-                        "Address",
-                        "Google Maps",
-                    ]
-                ].to_html(index=False, escape=False),
-                unsafe_allow_html=True,
-            )
-
+            ].to_html(index=False, escape=False),
+            unsafe_allow_html=True,
+        )
             # ================== DOWNLOAD ==================
             from io import BytesIO
 
