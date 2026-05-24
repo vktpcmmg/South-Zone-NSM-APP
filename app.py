@@ -814,26 +814,31 @@ except:
     st.warning("Location permission denied or GPS unavailable.")
 
 # ---------- MANUAL ENTRY ----------
+# ---------- SESSION STATE ----------
+if "user_latitude" not in st.session_state:
+    st.session_state.user_latitude = 0.0
+
+if "user_longitude" not in st.session_state:
+    st.session_state.user_longitude = 0.0
+
+# ---------- MANUAL ENTRY ----------
 col1, col2 = st.columns(2)
 
 with col1:
     user_lat = st.number_input(
         "Your current latitude",
         format="%.6f",
-        value=round(auto_lat, 6),
-        help="Auto-filled from GPS OR enter manually",
         key="user_latitude",
+        help="Auto-filled from GPS OR enter manually",
     )
 
 with col2:
     user_lon = st.number_input(
         "Your current longitude",
         format="%.6f",
-        value=round(auto_lon, 6),
-        help="Auto-filled from GPS OR enter manually",
         key="user_longitude",
+        help="Auto-filled from GPS OR enter manually",
     )
-
     # ================== ACTION ==================
     if st.button("📍 Find nearest 100 meters"):
 
