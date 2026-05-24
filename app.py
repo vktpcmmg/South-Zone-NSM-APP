@@ -8,6 +8,8 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from streamlit_geolocation import streamlit_geolocation
+
 def get_current_location():
     components.html(
         """
@@ -765,56 +767,42 @@ with st.expander("Show nearest 100 meters on map"):
 
 st.markdown("### 📍 Location Input")
 
-# ---------- AUTO FETCH BUTTON ----------
-if st.button("📡 Auto Fetch My Current Location"):
-    get_current_location()
+# ---------- GET CURRENT LOCATION ----------
+location = streamlit_geolocation()
 
-# ---------- READ URL PARAMS ----------
-query_params = st.query_params
+lat_value = 0.0
+lon_value = 0.0
 
-default_lat = 0.0
-default_lon = 0.0
+if location is not None:
 
-try:
+    try:
 
-    if "lat" in query_params:
-        default_lat = round(
-            float(query_params["lat"]),
-            6
-        )
+        if location["latitude"] is not None:
 
-    if "lon" in query_params:
-        default_lon = round(
-            float(query_params["lon"]),
-            6
-        )
+            lat_value = round(
+                location["latitude"],
+                6
+            )
 
-except:
-    pass
+        if location["longitude"] is not None:
 
-# ---------- INPUT BOXES ----------
-# ---------- SESSION STATE ----------
-if "user_latitude" not in st.session_state:
-    st.session_state.user_latitude = default_lat
+            lon_value = round(
+                location["longitude"],
+                6
+            )
 
-if "user_longitude" not in st.session_state:
-    st.session_state.user_longitude = default_lon
-
-# Update values from GPS
-if default_lat != 0.0:
-    st.session_state.user_latitude = default_lat
-
-if default_lon != 0.0:
-    st.session_state.user_longitude = default_lon
+    except:
+        pass
 
 # ---------- INPUT BOXES ----------
 col1, col2 = st.columns(2)
+
 with col1:
 
     user_lat = st.number_input(
         "Your current latitude",
         format="%.6f",
-        key="user_latitude",
+        value=lat_value,
     )
 
 with col2:
@@ -822,7 +810,7 @@ with col2:
     user_lon = st.number_input(
         "Your current longitude",
         format="%.6f",
-        key="user_longitude",
+        value=lon_value,
     )
 
 # ================== ACTION ==================
