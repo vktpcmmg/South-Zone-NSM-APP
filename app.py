@@ -9,11 +9,10 @@ from google.oauth2.service_account import Credentials
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from streamlit_geolocation import streamlit_geolocation
-from sklearn.cluster import DBSCAN
-import folium
-from folium.plugins import MarkerCluster
-from streamlit_folium import st_folium
+import pandas as pd
 import numpy as np
+import math
+from io import BytesIO
 
 def get_current_location():
     components.html(
@@ -1071,12 +1070,12 @@ if st.session_state.user == "admin":
 
         with col4:
 
-            hotspot_meter_count = st.number_input(
-                "Minimum Meter Count",
-                min_value=10,
-                max_value=5000,
-                value=100,
-                step=10,
+            hotspot_top_n = st.number_input(
+                "Top Clusters",
+                min_value=1,
+                max_value=20,
+                value=5,
+                step=1,
             )
 
         # ---------- SEARCH ----------
@@ -1118,47 +1117,114 @@ if st.session_state.user == "admin":
                 subset=["Latitude", "Longitude"]
             )
 
+            hotspot_df = hotspot_df.reset_index(
+                drop=True
+            )
+
             if hotspot_df.empty:
 
                 st.warning("No valid data found.")
 
             else:
 
-                # ---------- LIMIT LARGE DATA ----------
-                if len(hotspot_df) > 15000:
+                # ---------- HAVERSINE ----------
+                def haversine_meters(
+                    lat1,
+                    lon1,
+                    lat2,
+                    lon2
+                ):
 
-                    hotspot_df = hotspot_df.sample(
-                        15000,
-                        random_state=42
+                    R = 6371000
+
+                    phi1 = math.radians(lat1)
+                    phi2 = math.radians(lat2)
+
+                    dphi = math.radians(
+                        lat2 - lat1
                     )
 
-                # ---------- DBSCAN ----------
-                coords = hotspot_df[
-                    ["Latitude", "Longitude"]
-                ].to_numpy()
+                    dlambda = math.radians(
+                        lon2 - lon1
+                    )
 
-                kms_per_radian = 6371.0088
+                    a = (
+                        math.sin(dphi / 2) ** 2
+                        +
+                        math.cos(phi1)
+                        *
+                        math.cos(phi2)
+                        *
+                        math.sin(dlambda / 2) ** 2
+                    )
 
-                epsilon = (
-                    hotspot_radius / 1000
-                ) / kms_per_radian
+                    c = (
+                        2
+                        *
+                        math.atan2(
+                            math.sqrt(a),
+                            math.sqrt(1 - a)
+                        )
+                    )
 
-                db = DBSCAN(
-                    eps=epsilon,
-                    min_samples=hotspot_meter_count,
-                    algorithm="ball_tree",
-                    metric="haversine",
-                ).fit(
-                    np.radians(coords)
-                )
+                    return R * c
 
-                hotspot_df["cluster"] = db.labels_
+                # ---------- FIXED RADIUS CLUSTERS ----------
+                remaining_df = hotspot_df.copy()
 
-                hotspot_clusters = hotspot_df[
-                    hotspot_df["cluster"] != -1
-                ].copy()
+                clusters = []
 
-                if hotspot_clusters.empty:
+                cluster_id = 1
+
+                while not remaining_df.empty:
+
+                    center_row = remaining_df.iloc[0]
+
+                    center_lat = center_row["Latitude"]
+                    center_lon = center_row["Longitude"]
+
+                    temp_df = remaining_df.copy()
+
+                    temp_df["Distance_m"] = temp_df.apply(
+
+                        lambda r: haversine_meters(
+                            center_lat,
+                            center_lon,
+                            r["Latitude"],
+                            r["Longitude"],
+                        ),
+
+                        axis=1,
+                    )
+
+                    cluster_df = temp_df[
+                        temp_df["Distance_m"]
+                        <= hotspot_radius
+                    ].copy()
+
+                    if len(cluster_df) > 1:
+
+                        cluster_df["Cluster ID"] = (
+                            cluster_id
+                        )
+
+                        cluster_df = cluster_df.sort_values(
+                            "Distance_m"
+                        )
+
+                        clusters.append(cluster_df)
+
+                        cluster_id += 1
+
+                    # REMOVE USED METERS
+                    remaining_df = remaining_df[
+                        ~remaining_df.index.isin(
+                            cluster_df.index
+                        )
+                    ]
+
+                # ---------- FINAL ----------
+                if len(clusters) == 0:
 
                     st.warning(
                         "No hotspot clusters found."
@@ -1166,53 +1232,53 @@ if st.session_state.user == "admin":
 
                 else:
 
-                    # ---------- TOP 5 HOTSPOTS ----------
+                    final_clusters = pd.concat(
+                        clusters,
+                        ignore_index=True
+                    )
+
+                    # ---------- SUMMARY ----------
                     hotspot_summary = (
 
-                        hotspot_clusters
-                        .groupby("cluster")
+                        final_clusters
+                        .groupby("Cluster ID")
                         .size()
-                        .reset_index(name="Meter Count")
+                        .reset_index(
+                            name="Meter Count"
+                        )
                         .sort_values(
                             "Meter Count",
                             ascending=False
                         )
-                        .head(5)
-                        .reset_index(drop=True)
 
                     )
 
-                    # ---------- CLUSTER NUMBERING ----------
+                    # ---------- TOP N ----------
+                    hotspot_summary = hotspot_summary.head(
+                        hotspot_top_n
+                    )
+
+                    # ---------- RESEQUENCE ----------
+                    hotspot_summary = hotspot_summary.reset_index(
+                        drop=True
+                    )
+
                     hotspot_summary["Cluster ID"] = (
                         hotspot_summary.index + 1
                     )
 
-                    # ---------- MAP OLD TO NEW ----------
-                    cluster_mapping = dict(
-                        zip(
-                            hotspot_summary["cluster"],
-                            hotspot_summary["Cluster ID"]
-                        )
+                    # ---------- KEEP ONLY TOP ----------
+                    top_cluster_ids = (
+                        hotspot_summary["Cluster ID"]
+                        .tolist()
                     )
 
-                    # ---------- FILTER TOP 5 ----------
-                    hotspot_clusters = hotspot_clusters[
-                        hotspot_clusters["cluster"].isin(
-                            cluster_mapping.keys()
-                        )
+                    final_clusters = final_clusters[
+                        final_clusters["Cluster ID"]
+                        <= hotspot_top_n
                     ]
 
-                    # ---------- APPLY NEW NUMBERING ----------
-                    hotspot_clusters["cluster"] = (
-                        hotspot_clusters["cluster"]
-                        .map(cluster_mapping)
-                    )
-
-                    # ---------- FINAL SUMMARY ----------
-                    hotspot_summary = hotspot_summary[
-                        ["Cluster ID", "Meter Count"]
-                    ]
-
+                    # ---------- SUMMARY ----------
                     st.subheader(
                         "🔥 Hotspot Cluster Summary"
                     )
@@ -1222,14 +1288,15 @@ if st.session_state.user == "admin":
                         use_container_width=True,
                     )
 
-                    # ---------- HOTSPOT METER LIST ----------
+                    # ---------- HOTSPOT LIST ----------
                     st.subheader(
                         "📋 Hotspot Meter List"
                     )
 
-                    hotspot_show = hotspot_clusters[
+                    hotspot_show = final_clusters[
                         [
-                            "cluster",
+                            "Cluster ID",
+                            "Distance_m",
                             "Meter No.",
                             "Consumer Name",
                             "Consumer type",
@@ -1243,25 +1310,40 @@ if st.session_state.user == "admin":
 
                     hotspot_show = hotspot_show.rename(
                         columns={
-                            "cluster": "Cluster ID"
+                            "Distance_m":
+                            "Distance From Center (m)"
                         }
                     )
 
                     hotspot_show.insert(
                         0,
                         "Sr No.",
-                        range(1, len(hotspot_show) + 1)
+                        range(
+                            1,
+                            len(hotspot_show) + 1
+                        )
+                    )
+
+                    hotspot_show[
+                        "Distance From Center (m)"
+                    ] = hotspot_show[
+                        "Distance From Center (m)"
+                    ].round(2)
+
+                    hotspot_show = hotspot_show.sort_values(
+                        [
+                            "Cluster ID",
+                            "Distance From Center (m)"
+                        ]
                     )
 
                     st.dataframe(
                         hotspot_show,
                         use_container_width=True,
-                        height=500,
+                        height=600,
                     )
 
                     # ---------- DOWNLOAD ----------
-                    from io import BytesIO
-
                     buffer = BytesIO()
 
                     with pd.ExcelWriter(
@@ -1272,7 +1354,7 @@ if st.session_state.user == "admin":
                         hotspot_show.to_excel(
                             writer,
                             index=False,
-                            sheet_name="Top_5_Hotspot_Clusters",
+                            sheet_name="Hotspot_Clusters",
                         )
 
                     buffer.seek(0)
@@ -1280,6 +1362,6 @@ if st.session_state.user == "admin":
                     st.download_button(
                         "⬇️ Download Hotspot Excel",
                         data=buffer,
-                        file_name="top_5_hotspot_clusters.xlsx",
+                        file_name="hotspot_clusters.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     )
