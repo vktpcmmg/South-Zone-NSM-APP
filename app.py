@@ -808,6 +808,7 @@ if default_lon != 0.0:
     st.session_state.user_longitude = default_lon
 
 # ---------- INPUT BOXES ----------
+col1, col2 = st.columns(2)
 with col1:
 
     user_lat = st.number_input(
