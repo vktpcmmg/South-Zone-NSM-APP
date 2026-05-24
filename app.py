@@ -8,6 +8,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from streamlit_js_eval import get_geolocation
 from streamlit_js_eval import streamlit_js_eval
 
 import base64
